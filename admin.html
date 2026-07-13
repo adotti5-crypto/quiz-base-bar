@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Admin - Base Quiz</title>
+    <style>
+        body { font-family: 'Arial Black', sans-serif; background: #222; color: #fff; padding: 10px; margin: 0; text-align: center; }
+        .logo-admin-container { margin: 10px auto; max-width: 80px; text-align: center; }
+        .logo-admin-img { width: 100%; height: auto; display: block; margin: 0 auto; filter: invert(1); }
+        .box-admin { background: #f4ebd0; color: #111; border: 4px solid #000; border-radius: 12px; padding: 15px; margin: 15px auto; max-width: 450px; box-shadow: 4px 4px 0px #ffcc00; }
+        button { font-family: inherit; font-size: 14px; padding: 10px; margin: 4px; border: 3px solid #000; border-radius: 8px; box-shadow: 3px 3px 0px #000; cursor: pointer; text-transform: uppercase; font-weight: bold; }
+        button:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0px #000; }
+        button:disabled { background: #999 !important; color: #666 !important; cursor: not-allowed; box-shadow: none; transform: none; }
+        .btn-tempo { background: #ddd; }
+        .btn-piu { background: #26890c; color: white; min-width: 45px; }
+        .btn-zero { background: #888; color: white; min-width: 45px; }
+        .btn-meno { background: #e21b3c; color: white; min-width: 45px; }
+        .btn-controllo { background: #1368ce; color: white; font-size: 16px; padding: 12px; width: 45%; }
+        .btn-domanda { background: #ffcc00; font-size: 20px; padding: 15px; width: 90%; margin-top: 10px; }
+        .giocatore-row { border-bottom: 3px dashed #000; padding: 12px 0; text-align: left; }
+        .risposta-testo { background: #fff; border: 2px solid #000; padding: 8px; font-family: monospace; font-size: 16px; margin-top: 8px; color: #000; box-shadow: inset 2px 2px 0px #ddd; display: flex; justify-content: space-between; }
+        .status-badge { display: inline-block; padding: 5px 10px; border-radius: 5px; border: 2px solid #000; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="logo-admin-container">
+        <img src="logo_BASE.png" class="logo-admin-img" alt="Logo Admin">
+    </div>
+    <h2 style="color:#ffcc00; margin: 5px 0;">CONSOLE PRESENTATORE</h2>
+
+    <div class="box-admin" style="box-shadow: 4px 4px 0px #1368ce;">
+        <h3>⚙️ GESTIONE SESSIONE</h3>
+        <div id="badge-sessione" class="status-badge" style="background:#ccc;">SESSIONE FERMA</div><br>
+        <button class="btn-controllo" style="background:#26890c;" onclick="startSession()">▶ AVVIA GIOCO</button>
+        <button class="btn-controllo" style="background:#e21b3c;" onclick="stopSession()">⏹ TERMINA</button>
+        
+        <p style="font-size:12px; color:#555; margin-top:5px;"><i>Nota: Avviando o Terminando un gioco, azzererai tutti i punteggi!</i></p>
+        <hr style="border: 2px solid #000;">
+        
+        <h3>⏱️ TIMER RISPOSTE</h3>
+        <button class="btn-tempo" onclick="setTimer(15)">15s</button>
+        <button class="btn-tempo" onclick="setTimer(30)">30s</button>
+        <button class="btn-tempo" onclick="setTimer(45)">45s</button>
+        <p style="margin:5px 0;">Timer impostato a: <strong id="timer-set">30</strong> sec</p>
+    </div>
+
+    <div class="box-admin">
+        <button class="btn-domanda" onclick="nuovaDomanda()">📢 FAI PARTIRE NUOVA DOMANDA!</button>
+        <h1 id="timer-live" style="font-size: 50px; margin: 10px 0; color:#e21b3c; text-shadow: 2px 2px 0px #000;">00</h1>
+    </div>
+
+    <div class="box-admin">
+        <h3>👥 RISPOSTE E PUNTI LIVE</h3>
+        <div id="regolazione-giocatori"></div>
+    </div>
+
+    <script>
+        const HOST = location.origin.replace(/^http/, 'ws');
+        let ws;
+
+        function connect() {
+            ws = new WebSocket(HOST);
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'STATUS_UPDATE') {
+                    document.getElementById('timer-set').innerText = data.tempoMassimo;
+                    document.getElementById('timer-live').innerText = data.timerCorrente;
+                    
+                    const badge = document.getElementById('badge-sessione');
+                    if(data.sessioneAttiva) {
+                        badge.innerText = "✅ SESSIONE ATTIVA";
+                        badge.style.background = "#26890c";
+                        badge.style.color = "white";
+                    } else {
+                        badge.innerText = "❌ SESSIONE FERMA";
+                        badge.style.background = "#ccc";
+                        badge.style.color = "black";
+                    }
+                    costruisciPannelloGiocatori(data.giocatori);
+                }
+                if (data.type === 'TIMER_TICK') document.getElementById('timer-live').innerText = data.timerCorrente;
+            };
+        }
+        connect();
+
+        function setTimer(sec) { ws.send(JSON.stringify({ type: 'SET_TIME', tempo: sec })); }
+        function startSession() { ws.send(JSON.stringify({ type: 'START_SESSION' })); }
+        function stopSession() { ws.send(JSON.stringify({ type: 'STOP_SESSION' })); }
+        function nuovaDomanda() { ws.send(JSON.stringify({ type: 'NUOVA_DOMANDA' })); }
+        function assegnaPunti(nome, valore) { ws.send(JSON.stringify({ type: 'MODIFICA_PUNTI', nome: nome, valore: valore })); }
+
+        function costruisciPannelloGiocatori(giocatori) {
+            const contenitore = document.getElementById('regolazione-giocatori');
+            contenitore.innerHTML = "";
+            
+            for (let g in giocatori) {
+                const info = giocatori[g];
+                const rispStatus = info.haRisposto ? "✅ Risposta Inviata" : "⌛ Sta pensando...";
+                const disabilitato = info.puntiAssegnatiQuestoTurno ? "disabled" : "";
+                const opacita = info.puntiAssegnatiQuestoTurno ? "style='opacity: 0.6;'" : "";
+                
+                contenitore.innerHTML += `
+                    <div class="giocatore-row" ${opacita}>
+                        <div style="font-size: 18px; margin-bottom: 8px;">
+                            <strong>${info.avatar} ${g}</strong> 
+                            <span style="background:#ffcc00; padding:2px 5px; border:2px solid #000; border-radius:4px;">${info.punti} pt</span>
+                            ${info.puntiAssegnatiQuestoTurno ? "🔴 <i>Valutato</i>" : ""}
+                        </div>
+                        <div>
+                            <button class="btn-zero" ${disabilitato} onclick="assegnaPunti('${g}', 0)">+0</button>
+                            <button class="btn-piu" ${disabilitato} onclick="assegnaPunti('${g}', 5)">+5</button>
+                            <button class="btn-piu" ${disabilitato} onclick="assegnaPunti('${g}', 10)">+10</button>
+                            <button class="btn-meno" ${disabilitato} onclick="assegnaPunti('${g}', -5)">-5</button>
+                            <button class="btn-meno" ${disabilitato} onclick="assegnaPunti('${g}', -10)">-10</button>
+                        </div>
+                        <div class="risposta-testo">
+                            <span><b>${info.risposta || '...'}</b></span>
+                            <span style="font-size:12px; color:#666;">${rispStatus}</span>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

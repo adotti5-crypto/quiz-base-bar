@@ -1,0 +1,10 @@
+{
+  "name": "quiz-base",
+  "version": "1.0.0",
+  "description": "App Quiz per Base Bar",
+  "main": "server.js",
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.16.0"
+  }
+}
